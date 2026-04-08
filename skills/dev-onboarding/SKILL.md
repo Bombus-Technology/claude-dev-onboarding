@@ -12,10 +12,34 @@ user_invocable: true
 你做的事：跑一次 /dev-onboarding（20 分鐘訪談 + 環境建立）
 系統做的事：
   每天 → observe 記錄你的操作（你不用管）
-  每週 → 自動分析 pattern → 新 skill 建議出現在 daily briefing（你不用跑指令）
-  每月 → instincts 自動合併 → 提醒你確認（你不用跑指令）
-  持續 → 越用越懂你
+  每週 → 自動分析 pattern → session 開頭顯示建議（你不用跑指令）
+  每月 → instincts 自動合併成 skill（你不用跑指令）
+  持續 → skill 本身也在進化（catalog 從 source of truth 自動同步）
 ```
+
+## Skill 自我進化
+
+這個 skill 不是靜態的。它會根據 Allen（Team Lead）的系統持續更新：
+
+```
+Allen 的 ~/.claude/（source of truth）
+  ├── hooks/     ← Allen 新增了 deploy-reminder
+  ├── commands/  ← Allen 新增了 /debate
+  └── agents/    ← Allen 新增了 tech-scout-orchestrator
+       │
+       ▼ self-update.sh 定期掃描
+       │
+Skill 的 references/catalog
+  ├── hook-catalog.md   ← 自動加入 deploy-reminder
+  ├── skill-catalog.md  ← 自動加入 /debate
+  └── agent-catalog.md  ← 自動加入 tech-scout-orchestrator
+       │
+       ▼ 下次使用者 session 開始
+       │
+  「Allen 最近加了 /debate skill，你要不要也裝？」
+```
+
+**Allen 的進化自動傳遞給所有使用者。使用者不用手動更新。**
 
 ## 判斷模式
 
@@ -23,9 +47,10 @@ user_invocable: true
 
 | 輸入 | 做什麼 |
 |------|--------|
-| (空) | 首次 → 訪談 + 建環境 / 已建過 → 顯示環境狀態 |
-| `status` | 列出已裝的 agents/skills/hooks + 使用率 |
+| (空) | 首次 → 訪談 + 建環境 / 已建過 → 顯示環境狀態 + 有無新推薦 |
+| `status` | 已裝的 agents/skills/hooks + 使用率 + catalog 新增項 |
 | `add {type} {name}` | 從 catalog 加一個 agent/skill/hook |
+| `sync` | 手動觸發 catalog 同步（通常自動，不需手動） |
 | `remove {type} {name}` | 移除 | 移除不用的 |
 | `reset` | 重建 | 重跑訪談，整個重來 |
 
@@ -177,9 +202,42 @@ EOF
 使用者可以說「接受」或「忽略」。接受的立即執行。
 ```
 
-### 3.5 更新 profile.json
+### 3.5 安裝 Skill 自動同步
 
-記錄所有安裝的項目 + 啟用排程。
+從 Allen 的系統自動同步新工具到使用者環境：
+
+```bash
+# 安裝 self-update.sh 為每週 cron
+SKILL_PATH="$HOME/.claude/skills/dev-onboarding"
+CRON_CMD="0 10 * * 6 $SKILL_PATH/self-update.sh >> $SKILL_PATH/update-log.md 2>&1"
+
+# 檢查是否已存在
+(crontab -l 2>/dev/null | grep -v "self-update.sh"; echo "$CRON_CMD") | crontab -
+```
+
+**時間：每週六 10:00（本地時間）**
+
+效果：
+- 每週自動掃描 Allen 的 `~/.claude/`（hooks/commands/agents）
+- 與 catalog 比對，找出新增項目
+- 新項目寫入 `update-log.md`
+- 下次 session 開始時自動提示：「Allen 新增了 X，要安裝嗎？」
+
+### 3.6 建立 session 開始自動同步提示
+
+在 `~/.claude/CLAUDE.md` 追加：
+
+```markdown
+## 環境自動同步
+
+session 開始時檢查：
+1. 如果 ~/.claude/skills/dev-onboarding/update-log.md 最近 7 天有新項目 → 顯示推薦
+2. 使用者可以說「裝」或「跳過」
+```
+
+### 3.7 更新 profile.json
+
+記錄所有安裝的項目 + 啟用排程 + 記錄 self-update cron 狀態。
 
 ---
 
@@ -324,6 +382,23 @@ instincts 夠多（3+ 同 domain, ≥ 0.85）
   │
   ├── 使用者確認 → 建 skill
   └── 使用者拒絕 → 不建，不再問
+
+--- 同時（獨立路徑）---
+
+Allen 更新自己的 ~/.claude/
+  │ 新增 hook/skill/agent
+  │
+  ▼
+每週六 10:00 self-update.sh 自動掃描
+  │ 比對 catalog → 找到新項目
+  │ 寫入 update-log.md
+  │
+  ▼
+下次 session 開始
+  │ 「Allen 新增了 /debate skill，要安裝嗎？」
+  │
+  ├── 使用者說「裝」→ 自動安裝 + 更新 profile
+  └── 使用者說「跳過」→ 不裝，下週不再問同一個
 ```
 
 **使用者只需要跑一次 `/dev-onboarding`。之後所有學習和進化都是自動的，只在 session 開頭簡短提示。**
