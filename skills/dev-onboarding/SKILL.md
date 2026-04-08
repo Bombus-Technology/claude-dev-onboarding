@@ -1,33 +1,31 @@
 ---
 name: dev-onboarding
-description: AI 開發環境持續進化系統。首次使用做深度訪談建環境，之後根據使用行為自動學習、推薦新 skill、淘汰沒用的、持續優化。
+description: AI 開發環境一鍵搭建。深度訪談了解工作方式 → 建 agents/skills/hooks/wiki/學習系統。建完後系統自動持續進化，不需要再手動跑。
 user_invocable: true
 ---
 
-# /dev-onboarding — AI 開發環境持續進化
+# /dev-onboarding — AI 開發環境搭建
 
-不是一次性安裝。是一個**持續學習、持續優化**的系統。
+使用者只需要跑一次。之後系統自己學習、自己進化。
 
 ```
-首次：深度訪談 → 建環境
-每天：observe 記錄操作
-每週：review 分析 pattern → 推薦新 skill / 調整 hook / 更新 wiki
-每月：evolve 升級 instincts → 產出新 agent
-持續：你用越多 → 系統越懂你 → 環境越順手
+你做的事：跑一次 /dev-onboarding（20 分鐘訪談 + 環境建立）
+系統做的事：
+  每天 → observe 記錄你的操作（你不用管）
+  每週 → 自動分析 pattern → 新 skill 建議出現在 daily briefing（你不用跑指令）
+  每月 → instincts 自動合併 → 提醒你確認（你不用跑指令）
+  持續 → 越用越懂你
 ```
 
 ## 判斷模式
 
-根據 `$ARGUMENTS` 和系統狀態判斷執行什麼：
+根據 `$ARGUMENTS` 判斷：
 
-| 輸入 | 模式 | 做什麼 |
-|------|------|--------|
-| (空) | 自動判斷 | 首次 → Phase 1 訪談 / 非首次 → Phase 4 review |
-| `setup` | 首次建置 | Phase 1 → 2 → 3 |
-| `review` | 週 review | Phase 4（分析 observations → 推薦改善） |
-| `evolve` | 月進化 | Phase 5（instincts → 新 skill/agent） |
-| `status` | 環境狀態 | 列出所有已裝的 agents/skills/hooks + 使用率 |
-| `add {type} {name}` | 新增 | 從 catalog 加一個 agent/skill/hook |
+| 輸入 | 做什麼 |
+|------|--------|
+| (空) | 首次 → 訪談 + 建環境 / 已建過 → 顯示環境狀態 |
+| `status` | 列出已裝的 agents/skills/hooks + 使用率 |
+| `add {type} {name}` | 從 catalog 加一個 agent/skill/hook |
 | `remove {type} {name}` | 移除 | 移除不用的 |
 | `reset` | 重建 | 重跑訪談，整個重來 |
 
@@ -118,17 +116,76 @@ user_invocable: true
 
 ---
 
-## Phase 3：建立環境（首次）
+## Phase 3：建立環境 + 自動排程（首次）
 
-全部確認後一次建好。建完更新 profile.json 的 `installed` 欄位。
+全部確認後依序執行：
 
-啟用 observe hook（如果使用者同意）→ 開始記錄操作。
+### 3.1 建 agents/skills/hooks/wiki
+
+（同前，根據 Phase 2 確認的項目建立）
+
+### 3.2 啟用學習系統
+
+- 啟用 observe hook → 開始記錄操作
+- 建立 `~/.claude/homunculus/` 目錄結構（如果不存在）
+
+### 3.3 安裝自動進化排程
+
+建立 `~/.claude/hooks/dev-auto-review.sh`：
+
+```bash
+#!/bin/bash
+# 每次 session 的 Stop hook — 自動分析本次 session + 累積學習
+# 不需要使用者手動跑 review
+
+OBS_FILE="$HOME/.claude/homunculus/observations.jsonl"
+PROFILE="$HOME/.claude/dev-onboarding-profile.json"
+REVIEW_FILE="$HOME/.claude/dev-review-latest.md"
+
+# 如果 observations 不足 50 筆新增，跳過
+OBS_COUNT=$(wc -l < "$OBS_FILE" 2>/dev/null || echo 0)
+LAST_COUNT=$(python3 -c "import json; print(json.load(open('$PROFILE')).get('last_obs_count',0))" 2>/dev/null || echo 0)
+NEW_OBS=$((OBS_COUNT - LAST_COUNT))
+
+if [ $NEW_OBS -lt 50 ]; then
+  exit 0
+fi
+
+# 有足夠新 observations → 產出 review 提示
+cat << EOF
+
+📊 你累積了 $NEW_OBS 筆新的操作記錄。系統發現了一些 pattern：
+   下次 session 開始時會自動顯示建議。
+
+EOF
+```
+
+掛到 `~/.claude/settings.json` 的 Stop hook。
+
+### 3.4 建立 session 開始自動建議
+
+在 `~/.claude/CLAUDE.md` 追加：
+
+```markdown
+## 每次 Session 開始時
+
+如果 ~/.claude/dev-review-latest.md 存在且 < 7 天，讀取並顯示：
+- 發現的新 pattern
+- 推薦新增/移除的工具
+- 環境健康度
+
+使用者可以說「接受」或「忽略」。接受的立即執行。
+```
+
+### 3.5 更新 profile.json
+
+記錄所有安裝的項目 + 啟用排程。
 
 ---
 
-## Phase 4：週 Review（`/dev-onboarding review`）
+## Phase 4：自動週 Review（使用者不用跑，系統自己做）
 
-**不依賴 session 結束。使用者任何時候都可以跑。建議每週跑一次。**
+**由 Stop hook 觸發。累積 50+ 筆新 observations 就分析一次。結果在下次 session 開始時自動顯示。**
 
 ### 4.1 分析 Observations
 
@@ -199,77 +256,85 @@ user_invocable: true
 - {不用的 skill/hook}，因為 {理由}
 ```
 
-問使用者：「要接受這些建議嗎？」→ 接受的立即執行（新增/移除）。
+結果寫入 `~/.claude/dev-review-latest.md`。下次 session 開始自動顯示，問使用者接受或忽略。
 
 ---
 
-## Phase 5：月進化（`/dev-onboarding evolve`）
+## Phase 5：自動月進化（使用者不用跑，系統自己做）
 
-### 5.1 Instincts 分析
+**由 dev-auto-review.sh 在 instincts 累積到 3+ 同 domain 時自動觸發建議。**
 
-讀取 `~/.claude/homunculus/instincts/personal/`，找信心度 ≥ 0.85 的：
+### 5.1 觸發條件
 
 ```
-高信心 instincts：
-  - prefer-functional-style (0.9)
-  - always-run-pytest-before-commit (0.85)
-  - use-structured-output-for-llm (0.88)
-  
-→ 這三個可以合併成一個 "coding-standards" skill
+instincts/personal/ 裡同一個 domain 的 instinct >= 3 個
+且信心度都 >= 0.85
+→ 自動產出合併建議到 dev-review-latest.md
+→ 下次 session 開始時顯示：「3 個 {domain} instincts 可以合併成一個 skill，要嗎？」
+→ 使用者說「要」→ 自動建 skill
+→ 使用者說「不要」→ 不做，下次不再問同一組
 ```
 
-### 5.2 自動升級
+### 5.2 Profile 自動更新
 
-信心度 ≥ 0.85 且同 domain 的 instincts 3+ 個 → 建議合併成 skill。
-
-**跟使用者確認後才建。** 不自動。
-
-### 5.3 Profile 更新
-
-更新 `dev-onboarding-profile.json`：
+每次 review 或 evolve 觸發都自動更新 `dev-onboarding-profile.json`：
 - `version` +1
 - `last_review` 更新
 - `review_count` +1
-- `installed` 更新（新增/移除的）
+- `installed` 更新
 - `identified_patterns` 追加
+- `last_obs_count` 更新
 
-### 5.4 環境健康度
+### 5.3 環境健康度（session 開始自動顯示）
 
 ```
-環境健康度：{score}/100
-  - 工具覆蓋率：{installed 數 / 推薦數}
-  - 使用率：{被用到的 / 已裝的}
-  - 學習進度：{instincts 數 / observations 數 比率}
-  - wiki 活躍度：{最近 7 天更新的頁面數}
+📊 環境健康度：{score}/100
+  工具覆蓋率：{已裝 / 推薦}
+  使用率：{被用到的 / 已裝的}
+  學習進度：{instincts 數}
+  wiki 活躍度：{最近 7 天}
 ```
+
+只在 session 開始顯示一行摘要。不打擾正常工作。
 
 ---
 
-## Phase 6：持續被動學習（不需要使用者觸發）
+## 整體自動化流程（使用者不需要做任何事）
 
-如果使用者啟用了 observe hook，以下自動發生：
+```
+使用者正常寫 code
+  │ observe hook 靜默記錄每個操作
+  │
+  ▼
+累積 50+ 筆新 observations（Stop hook 檢查）
+  │ 自動分析 pattern
+  │ 寫入 dev-review-latest.md
+  │
+  ▼
+下次 session 開始
+  │ CLAUDE.md 自動讀 dev-review-latest.md
+  │ 顯示一行：「發現 2 個新 pattern，要看嗎？」
+  │
+  ├── 使用者說「看」→ 顯示詳細 + 問接受/忽略
+  └── 使用者說「不看」→ 跳過，不打擾
+  │
+  ▼
+instincts 夠多（3+ 同 domain, ≥ 0.85）
+  │ 下次 session 自動建議合併成 skill
+  │
+  ├── 使用者確認 → 建 skill
+  └── 使用者拒絕 → 不建，不再問
+```
 
-### 6.1 Session Debrief（Stop hook）
-
-每次 session 結束：
-- 分析本次 session 的 observations
-- 如果發現新 pattern → 寫入 instincts/personal/
-- 如果有值得記的 → 提醒「要不要 /learn 存到 wiki？」
-
-### 6.2 每日 Pattern 偵測
-
-observe 累積超過 50 筆新 observations 時自動分析：
-- 有沒有重複操作可以變成 skill
-- 有沒有常見錯誤可以加 hook 預防
-- **只提醒，不自動改。** 下次 `/dev-onboarding review` 時一起處理。
+**使用者只需要跑一次 `/dev-onboarding`。之後所有學習和進化都是自動的，只在 session 開頭簡短提示。**
 
 ---
 
 ## 原則
 
 - **不替使用者決定。** 每個改動都問。
-- **不自動刪東西。** 只建議，使用者確認才刪。
-- **漸進式。** 首次不用全裝，用了再加。
-- **透明。** 告訴使用者 observe 記錄了什麼、分析了什麼。
-- **可移除。** 任何時候 `/dev-onboarding remove {type} {name}` 就移除。
-- **profile 是使用者的。** 不上傳，不分享（除非使用者主動 export）。
+- **不打擾工作。** 學習在背景，建議在 session 開頭。
+- **不自動刪東西。** 只建議，確認才動。
+- **漸進式。** 首次不用全裝，系統會隨使用自動建議追加。
+- **透明。** 使用者隨時 `/dev-onboarding status` 看系統知道什麼。
+- **profile 是使用者的。** 不上傳，不分享。
