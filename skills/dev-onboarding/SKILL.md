@@ -1,10 +1,18 @@
 ---
 name: dev-onboarding
-description: AI 開發環境一鍵搭建。訪談了解工作方式 → 建 agents/skills/hooks/wiki。系統自動持續進化。
+description: AI 開發環境一鍵搭建。訪談 → 建 agents/skills/hooks/wiki + 自動化閉環 + 每日學習。v3.0 新增 automation loop + notification taxonomy + completion discipline。
 user_invocable: true
+version: 3.0
 ---
 
-# /dev-onboarding — AI 開發環境搭建
+# /dev-onboarding v3.0 — AI 開發環境搭建
+
+**v3.0 (2026-04-20) 從 Bombus 生產 12 天累積提煉。新增：**
+- 🔄 **Phase 4: Automation Loop** — watcher + mailbox + sentinel + daily-lessons
+- 🎯 **Notification Taxonomy** — alert/decision/milestone/info 4 級分類
+- 📏 **Completion Discipline** — 6 條強制紀律
+- 📚 **Expanded catalog** — 30+ agents, 40+ skills, 20+ hooks
+- 🧠 **Daily Learning Loop** — 每日 09:00 自動 lesson-and-learn
 
 使用者只需要跑一次。之後系統自己學習、自己進化。
 
@@ -201,6 +209,89 @@ Session 開始時檢查（只在有新內容時顯示，不每次都問）：
 ### 3.5 更新 profile.json
 
 記錄所有安裝的項目 + cron 狀態。
+
+---
+
+## Phase 4：自動化閉環 (v3.0 新增, 可選)
+
+**問使用者：「你想要系統自己管理任務、自己通知你嗎？」**
+
+如果 yes，建立：
+
+### 4.1 Watcher 架構
+
+```bash
+mkdir -p ~/.claude/dispatch/{handlers,config,log,state}
+# 複製 references/automation-loop-guide.md 裡的 canonical layout
+# 每 5min 跑一次: */5 * * * * ~/.claude/dispatch/watcher.sh
+```
+
+### 4.2 核心 handlers (6 個必建)
+
+1. **mailbox.sh** — 統一訊息入口 + category filter
+2. **mailbox-digest.sh** — 每日 09:00 聚合 milestone + info
+3. **handler-sentinel.sh** — 追蹤 handler 健康
+4. **dispatch-integrity-check.sh** — drift 偵測 (每次 run)
+5. **daily-lessons.sh** — 每日 lesson-and-learn 閉環
+6. **git-watch.sh** — commit 偵測 + commit-to-review 自動化
+
+### 4.3 通知分級 (notification-taxonomy.md)
+
+| 類型 | Realtime Push | 例子 |
+|------|---------------|------|
+| 🚨 alert | YES | service down, security |
+| 🎯 decision | YES (強制結構化 A/B/C) | need Allen to choose |
+| ✅ milestone | mailbox only (daily digest) | task done |
+| 💬 info | log only | auto-sync done |
+
+### 4.4 Discord Bot 整合 (可選)
+
+```bash
+# 需要:
+# - Discord bot token (https://discord.com/developers)
+# - 至少 1 個 channel ID (receive alert/decision)
+# - 在 mailbox.sh 配 REALTIME_CHANNEL 表
+```
+
+---
+
+## Phase 5：每日學習閉環 (v3.0 新增, 強烈建議)
+
+**「每天都要進行 lesson-and-learn 這樣系統才能快速迭代」— Allen 2026-04-20**
+
+### 5.1 啟用 daily-lessons cron
+
+```bash
+# 每天 09:00 TW 自動跑 (watcher.sh 內建)
+# 聚合過去 24hr 的:
+# - observations (from CLv2)
+# - pending learnings (from learnings-distill)
+# - drift candidates
+# - integrity errors
+# - stale handlers
+# - failed deploys
+
+# 產出 daily-lessons-{date}.md + decision-marker mailbox
+```
+
+### 5.2 Learnings Pipeline (3 stages)
+
+```bash
+# Stage 1: learning-review.sh (6hr)
+#   observations.jsonl → instincts (personal memory)
+
+# Stage 2: learnings-distill.sh (per-session, Stop hook)
+#   session evidence → pending-learnings.jsonl
+
+# Stage 3: learnings-promote.sh (5min watcher)
+#   pending + router.json → playbook commits
+```
+
+### 5.3 Completion Discipline
+
+強制載入 `~/.claude/rules/completion-discipline.md` (參考 references/completion-discipline.md)。
+
+所有 session 開始時讀，session 結束前自檢 6 條紀律。
 
 ---
 
