@@ -1,9 +1,23 @@
 # Review of claude-dev-onboarding — from Savelyn
 
+> ## 🚫 這個分支不要 merge 進 master
+>
+> 這是 **Savelyn 個人 review 分支**，不是要合進主線的 feature branch。目的是：
+> - 給 Allen 看我 fork 後的客製軌跡
+> - 分享我踩的坑 / 做的修改 / 給你的建議
+> - 留作歷史紀錄（之後我進化了這套 workflow，Allen 想看演變可以回來看）
+>
+> **裡面的 reference 檔都是 Savelyn-specific**（eval-tuning-policy.md 是她工作流專用、architecture-snapshot.md 是 sage-agent-platform 內部架構快照等），整個 merge 會污染 master。
+>
+> **如果有具體內容想採用：** 手動 cherry-pick 到 master 的新 commit，或把 idea 寫進你自己的 SKILL.md / reference，不要整個 merge。
+
+---
+
 > 寫給 Allen。從一個實際 fork 過你設計的使用者角度，回報我怎麼用、改了什麼、踩了什麼坑、有什麼建議。
 > 不是批評，是兩個 persona 對照下你設計如何延伸的觀察。
 
 **時間：** 2026-04-21
+**分支：** `savelyn-fork-review-260421`（review / FYI only，**不要 merge**）
 **Fork baseline：** `8e6eb3c`（2026-04-15 的 master）
 **你後續更新的 v3.0（automation-loop-guide / completion-discipline / notification-taxonomy）我都讀了**，部分對照寫在最後一節。
 
